@@ -34,15 +34,15 @@ def get_rho_tuple(number_of_cells):
     return tuple(z)
 
 ##### Internal functions
-def getCellVariableDatapoint(coord):
+def getCellVariableDatapoint(coord,rho):
   # expect coord to be a nested list
   #   coord[0][0] = x-coordinate
   #   coord[1][0] = y-coordinate
   #   coord[2][0] = z-coordinate
-  global rho
+  #global rho
   return rho(coord, order=1)
 
-def sphericalDatapoint(theta, phi):
+def sphericalDatapoint(theta, phi,rho):
   # Expect theta and rho to be in radians
   #   theta is the angle from the +z-axis to the coordinate vector
   #   rho is the angle from the +x-axis to projection of the coordinate
@@ -53,13 +53,13 @@ def sphericalDatapoint(theta, phi):
   sin_phi = numerix.sin(phi)
   #print(len(sin_phi))
   cos_phi = numerix.cos(phi)
-  return sin_theta*getCellVariableDatapoint([[sin_theta*cos_phi], [sin_theta*sin_phi], [cos_theta]])
+  return sin_theta*rho([[sin_theta*cos_phi], [sin_theta*sin_phi], [cos_theta]],order=1)
 
 @ray.remote
-def prob_val(phi_min,phi_max,theta_min,theta_max):
+def prob_val(phi_min,phi_max,theta_min,theta_max,rho):
 	
-	f = lambda y, x: sphericalDatapoint(y, x)
-	[prob,error]=dblquad(f,phi_min,phi_max, lambda phi: theta_min, lambda phi: theta_max, epsabs=1e-15, epsrel=1e-13)
+	#f = lambda y, x: sphericalDatapoint(y, x)
+	[prob,error]=dblquad(lambda y, x: sphericalDatapoint(y, x,rho),phi_min,phi_max, lambda phi: theta_min, lambda phi: theta_max, epsabs=1e-15)#, epsrel=1e-13)
 	return prob
 
 # ### Load mesh details from a saved file
@@ -87,17 +87,19 @@ rho = CellVariable(name=r"$\Rho$",mesh=mesh,value=rho_value)
 ##########################################################################
 
 nth=91
-nphi=181
+nphi=46#181
 theta=numerix.linspace(0,numerix.pi,nth)
-phi=numerix.linspace(0,2*numerix.pi,nphi)
+phi=numerix.linspace(0,0.5*numerix.pi,nphi)
 
 probability=np.zeros(nth*nphi)
 conv_fac=(180.0/numerix.pi)
 
 i=0
-probability=[]
+probability=numerix.zeros(nth*nphi)
+#prob_id=[]
+prob_phi=numerix.zeros(len(phi))
 for iphi in range(len(phi)-1):
-	for ith in range(len(theta)-1):
+	for ith in range(2):#len(theta)-1):
 		print('----------------------------------------------------------')
 		print(i)
 		print('Phi = ' +str(phi[iphi]*conv_fac) + ' to ' + str(phi[iphi+1]*conv_fac))
@@ -109,16 +111,19 @@ for iphi in range(len(phi)-1):
 		theta_min=theta[ith]
 		theta_max=theta[ith+1]
 
-		#prob=prob_val.remote(phi_min,phi_max,theta_min,theta_max)
+		#prob=prob_val.remote(phi_min,phi_max,theta_min,theta_max,rho)
+		#prob_id.append(prob)
 		#probability=numerix.append(probability,ray.get(prob))
-		
-		probability.append(prob_val.remote(phi_min,phi_max,theta_min,theta_max))
-		i=i+1
+		probability[ith]=prob_val.remote(phi_min,phi_max,theta_min,theta_max,rho)    # ray.get(prob)
+		#probability.append(prob_val.remote(phi_min,phi_max,theta_min,theta_max,rho))
+		#i=i+1
+	prob_mid=ray.get(probability)
+	prob_phi[iphi]=numerix.sum(prob_mid)
 #file.write('\n-----------------------------------------------------------------')
-probability_all = ray.get(probability)
+probability_all = numerix.sum(prob_phi)
+#prob_all=ray.get(prob_id)
 
-
-#print('Probability = ' + str(probability_all))
+print('Probability = ' + str(probability_all))
 
 #file.write('Total Probability = ' + str(total_probability))
 #file.close()
