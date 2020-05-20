@@ -115,11 +115,10 @@ for iphi in range(len(phi)-1):
 		probability.append(prob_val.remote(phi_min,phi_max,theta_min,theta_max))
 		i=i+1
 #file.write('\n-----------------------------------------------------------------')
-probability_all = numerix.sum(probability)
+probability_all = ray.get(probability)
 
 
-#[probability,err]=(dblquad(f, 0, numerix.pi/6.0, lambda x:  0, lambda x: 1.0*numerix.pi, epsabs=1e-13, epsrel=1e-5))
-print('Probability = ' + str(probability_all))
+#print('Probability = ' + str(probability_all))
 
 #file.write('Total Probability = ' + str(total_probability))
 #file.close()
